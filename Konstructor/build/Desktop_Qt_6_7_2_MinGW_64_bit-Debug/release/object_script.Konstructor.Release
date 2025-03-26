@@ -1,0 +1,14 @@
+release/Telesystem.o
+release/graphicmodul.o
+release/graphicsscene.o
+release/graphicstelemet.o
+release/iniloader.o
+release/main.o
+release/mainwindow.o
+release/moduls.o
+release/point.o
+release/tableinfo.o
+release/moc_Telesystem.o
+release/moc_graphicsscene.o
+release/moc_iniloader.o
+release/moc_mainwindow.o
