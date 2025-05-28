@@ -1,0 +1,5 @@
+[main]
+Adres_Priem = 0x89
+Baund = 9600
+Parity = ODD
+Stop_Bits = 1
