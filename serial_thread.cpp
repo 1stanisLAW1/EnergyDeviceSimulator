@@ -43,7 +43,6 @@ void Serial_Thread::read_and_write_comands()
 
      quint8 c = static_cast<quint8>(requestData[2]);
     // Проверка минимальной длины (7 байт) и байта конца пакета (0xFF)
-    //if (requestData.size() >= 7 && requestData.size()<=15 && static_cast<quint8>(requestData[requestData.size() - 1]) == 0xFF) {
      if((requestData.size() > 7 && requestData.size()<=15 && c == 0x19)||(requestData.size() == 7)){
         // Проверка адреса отправителя (0x89 или 0xF0 для широковещательных)
         quint8 address = static_cast<quint8>(requestData[0]);
