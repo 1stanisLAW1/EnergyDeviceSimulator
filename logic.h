@@ -9,6 +9,7 @@ class Logic
 public:
     Logic();
     QVector<QString>showPortsName();
+
 private:
 };
 

@@ -1,13 +1,38 @@
 #include "logiwrite.h"
 #include "qdatetime.h"
 #include "qevent.h"
+#include "qlineedit.h"
 
 #include <QCoreApplication>
 #include <QFile>
 
 LogiWrite::LogiWrite(QObject *parent)
     : QObject{parent}
-{}
+{
+    for(int i = 0;i<16;i++){
+        names+=QString("DT_%1 = ").arg(i);
+    }
+    for(int i = 0;i<16;i++){
+        names+=QString("NC_%1 = ").arg(i);
+    }
+    names +={"DTA = ","DTB = ","DTC = ","DTD = ","DTE = ",
+"DTF = ","DTG = ","DTH = ","DTUP = ","DTWR = ",
+"DTDN = ","DTLF = ","TOP = ","BOT = ","W = ","DEN = ","N = "};
+
+    for(int i = 0;i<16;i++){
+        names+=QString("DR_%1 = ").arg(i);
+    }
+    for(int i = 0;i<16;i++){
+        names+=QString("RD_%1 = ").arg(i);
+    }
+    names +={"ZNT = ","CRV = ","IGK_1 = ","IGK_2 = ","IGK_3 = ",
+    "BA = ","CS = ","PE = ","DAC = ","CA = "};
+    for(int i = 0;i<16;i++){
+        names+=QString("RA_%1 = ").arg(i);
+    }
+    names +={"DMIN = ","DMAX = ","PRS_1 = ","PRS_2 = ","TMP_1 = ",
+             "TMP_2 = ","NEAR = ","NFAR = ","NUM = ","RSRV = ","id = "};
+}
 
 void LogiWrite::write_request()
 {
@@ -21,14 +46,13 @@ void LogiWrite::write_request()
         for(int i = 0; i<list.size();i++){
             stream<<list.at(i)+"\n";
         }
-        // Проверка на ошибки записи
+
         if (stream.status() != QTextStream::Ok) {
             qDebug() << "Ошибка записи данных: " << filePath << stream.status();
         }
 
         file.close();
 
-        // Проверка на ошибки закрытия файла
         if (file.error() != QFile::NoError) {
             qDebug() << "Ошибка закрытия файла";
         }
@@ -49,14 +73,12 @@ void LogiWrite::write_answer(QList<QString>list_answer)
         for(int i = 0; i<list_answer.size();i++){
             stream<<list_answer.at(i)+"\n";
         }
-        // Проверка на ошибки записи
         if (stream.status() != QTextStream::Ok) {
             qDebug() << "Ошибка записи данных: " << filePath << stream.status();
         }
 
         file.close();
 
-        // Проверка на ошибки закрытия файла
         if (file.error() != QFile::NoError) {
             qDebug() << "Ошибка закрытия файла";
         }
@@ -99,4 +121,49 @@ void LogiWrite::appendList(QString str, bool ok)
 {
     QString full_str = QTime::currentTime().toString("HH:mm:ss:zzz")+" - "+str+" - "+QString::number(ok);
     list.append(full_str);
+}
+
+void LogiWrite::saveConfig(QList<QWidget *> list)
+{
+
+    QStringList list_str;
+
+    QList<QLineEdit*>list_line;
+    for (QWidget *widget : list) {
+        list_line += widget->findChildren<QLineEdit*>();
+    }
+    for(int i = 0;i<list_line.size();i++){
+        list_str.append(list_line.at(i)->text());
+    }
+    writeConfig(list_str);
+}
+
+void LogiWrite::writeConfig(QStringList list_str)
+{
+
+    QString executablePath = QCoreApplication::applicationDirPath();
+    QString filePath = executablePath + "/../conf/data_config.txt";
+    QFile file(filePath);
+
+    if(file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream stream(&file);
+        stream<<"\n";
+
+        for(int i = 0;i<list_str.size();i++){
+            stream<<names.at(i)<<list_str.at(i)<<"\n";
+        }
+
+        if(stream.status() != QTextStream::Ok) {
+            qDebug() << "Ошибка записи данных: " << filePath << stream.status();
+        }
+
+        file.close();
+
+        if(file.error() != QFile::NoError) {
+            qDebug() << "Ошибка закрытия файла";
+        }
+    }
+    else {
+        qDebug() << "Не удалось открыть файл для записи";
+    }
 }

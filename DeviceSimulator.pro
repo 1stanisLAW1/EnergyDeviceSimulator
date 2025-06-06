@@ -15,6 +15,7 @@ SOURCES += \
     mainfunctions.cpp \
     mainwindow.cpp \
     sendingcommands.cpp \
+    serial_thread.cpp \
     upwidg.cpp
 
 HEADERS += \
@@ -23,6 +24,7 @@ HEADERS += \
     mainfunctions.h \
     mainwindow.h \
     sendingcommands.h \
+    serial_thread.h \
     upwidg.h
 
 FORMS += \

@@ -4,8 +4,8 @@
 #include "qdatetime.h"
 #include "qevent.h"
 #include "qlabel.h"
+#include "qlineedit.h"
 #include "qpushbutton.h"
-#include "qserialport.h"
 #include "qwidget.h"
 
 #include <QTimer>
@@ -17,20 +17,36 @@ UpWidg::UpWidg(QObject *parent)
 {
     widget = new QWidget();
     log = new Logic();
-    mF = new Mainfunctions();
-    value = openConfig();
+    st = new Serial_Thread();
 
     timer = new QTimer();
-    timer_2 = new QTimer();
 
-
-    lw = new LogiWrite();
+    QThread* thread = new QThread();
+    st->moveToThread(thread);
+    thread->start();
 
 
     comboBox_COM = new QComboBox();
     comboBox_Bould = new QComboBox();
     comboBox_Parity = new QComboBox();
     comboBox_StopBits = new QComboBox();
+
+    connect(timer, &QTimer::timeout, this, &UpWidg::addTime);
+
+    connect(st,&Serial_Thread::valid_signal,this,&UpWidg::valid);
+    connect(st,&Serial_Thread::signal_setTime,this,&UpWidg::set_time);
+
+    connect(this,&UpWidg::startRequested,st,&Serial_Thread::show_port);
+    connect(this,&UpWidg::update,st,&Serial_Thread::update_port);
+    connect(this, &UpWidg::start_timer, st, &Serial_Thread::start_timer, Qt::QueuedConnection);
+    connect(this, &UpWidg::stopRequest, st, &Serial_Thread::stop_timer, Qt::QueuedConnection);
+
+    connect(st, &Serial_Thread::packs_count, this, [this](int count) {
+        lblValue->setText(QString::number(count));
+    });
+
+    setItem_ComboBox();
+    value = openConfig();
 }
 
 UpWidg::~UpWidg()
@@ -44,15 +60,10 @@ UpWidg::~UpWidg()
     delete lblValue_2;
     delete  lbl_time;
     delete btnStart;
-    delete timer;
-    delete timer_2;
     delete log;
-    delete mF;
-    delete lw;
-
 }
 
- QWidget *UpWidg::upWidget()
+QWidget *UpWidg::upWidget()
 {
     QLabel* lblCOM = new QLabel("COM port:");
     QLabel* lblBould = new QLabel("Bould rate:");
@@ -65,13 +76,13 @@ UpWidg::~UpWidg()
     QLabel* lbl_text = new QLabel("Date and time on the device");
     lbl_time = new QLabel("Nope");
 
-   QLabel* lbl = new QLabel("Request Packs");
-   lblValue = new QLabel("0");
+    QLabel* lbl = new QLabel("Request Packs");
+    lblValue = new QLabel("0");
     lblValue->setText("0");
 
-   QLabel* lbl_2 = new QLabel("Адрес приёмника");
+    QLabel* lbl_2 = new QLabel("Адрес приёмника");
     lblValue_2 = new QLineEdit(value.at(0));
-   lblValue_2->setFixedWidth(50);
+    lblValue_2->setFixedWidth(50);
 
 
     QVBoxLayout* vLayout = new QVBoxLayout();
@@ -97,111 +108,42 @@ UpWidg::~UpWidg()
     hLayout_Down->addWidget(btnUpdate);
     hLayout_Down->addWidget(lbl_text);
     hLayout_Down->addWidget(lbl_time);
-   hLayout_Down->addWidget(lbl);
-   hLayout_Down->addWidget(lblValue);
+    hLayout_Down->addWidget(lbl);
+    hLayout_Down->addWidget(lblValue);
 
-   hLayout_Down->addWidget(lbl_2);
+    hLayout_Down->addWidget(lbl_2);
     hLayout_Down->addWidget(lblValue_2);
 
     widget->setLayout(vLayout);
 
 
-    connect(comboBox_COM,&QComboBox::currentIndexChanged,this,[this](){
-        if(comboBox_COM->currentIndex()==0){
-            serial.setPortName("COM1");
-        }else{
-        serial.setPortName(comboBox_COM->currentText());
-        }
-    });
-    connect(comboBox_Bould,&QComboBox::currentIndexChanged,this,[this](){
-        serial.setBaudRate(comboBox_Bould->currentText().toInt());
-    });
-    connect(comboBox_Parity,&QComboBox::currentIndexChanged,this,[this](){
-        switch (comboBox_Parity->currentIndex()) {
-        case 0:
-            serial.setParity(QSerialPort::Parity::NoParity);
-            break;
-        case 1:
-            serial.setParity(QSerialPort::Parity::EvenParity);
-            break;
-        case 2:
-            serial.setParity(QSerialPort::Parity::OddParity);
-            break;
-        case 3:
-            serial.setParity(QSerialPort::Parity::MarkParity);
-            break;
-        case 4:
-            serial.setParity(QSerialPort::Parity::SpaceParity);
-            break;
-        default:
-            break;
-        }
-    });
-    connect(comboBox_StopBits,&QComboBox::currentIndexChanged,this,[this](){
-        switch (comboBox_StopBits->currentIndex()) {
-        case 0:
-            serial.setStopBits(QSerialPort::StopBits::OneStop);
-            break;
-        case 1:
-            serial.setStopBits(QSerialPort::StopBits::TwoStop);
-            break;
-        default:
-            break;
-        }
-    });
-
     connect(btnUpdate, &QPushButton::clicked, this, [this]() {
         updateValues();
         emit updateRequested();
+        emit update(comboBox_COM->currentText(),comboBox_Bould->currentText(),comboBox_Parity->currentText(),
+                    comboBox_StopBits->currentText(),lblValue_2->text());
     });
 
-   serial.setDataBits(QSerialPort::DataBits::Data8);
 
-    connect(btnStart, &QPushButton::clicked, this,[this](){
+    connect(btnStart, &QPushButton::clicked, this,[this,btnUpdate](){
 
-       start =! start;
+        start =! start;
 
-       if(start == 1){
+        if(start == 1){
+            btnUpdate->click();
+            emit startRequested(comboBox_COM->currentText(),comboBox_Bould->currentText(),comboBox_Parity->currentText(),
+                              comboBox_StopBits->currentText(),lblValue_2->text());
+            emit start_timer();
+            lblValue->setText("0");
+            btnStart->setText("Stop");
 
-           if (!serial.isOpen()) {
-               if (!serial.open(QIODevice::ReadWrite)) {
-                   qDebug() << "Ошибка открытия порта:" << serial.errorString();
-                   timer->stop(); // Останавливаем таймер при ошибке
-                   btnStart->setText("Start");
-                   start = false;
-                   return;
-               }
-           }
-
-           timer->start(15);
-           timer_2->start(20);
-           list_answer.clear();
-           lblValue->setText("0");
-           counterPacks =0;
-           mF->clearVec();
-           emit updateRequested();
-           mF->setAdres(lblValue_2->text());
-           lw->clear_logs();
-           btnStart->setText("Stop");
-            connect(timer, &QTimer::timeout, this, &UpWidg::read_commands);
-            connect(timer_2,&QTimer::timeout, this,&UpWidg::countPack);
-       }else {
-           timer->stop();
-           timer_2->stop();
-           btnStart->setText("Start");
-           serial.close();
-           countPack();
-           count_2 = 0;
-           lw->write_answer(list_answer);
-           lw->write_request();
-       }
+        }else {
+            emit stopRequest();
+            btnStart->setText("Start");
+        }
     });
-
-   setItem_ComboBox();
-
-   updateValues();
-
-return widget;
+    btnUpdate->click();
+    return widget;
 }
 
 void UpWidg::setItem_ComboBox()
@@ -228,34 +170,6 @@ void UpWidg::setItem_ComboBox()
     for(int i =0; i<ports_StopBits.size();i++){
         comboBox_StopBits->addItem(ports_StopBits.at(i));
     }
-
-    serial.setPortName(comboBox_COM->currentText());
-    serial.setBaudRate(value.at(1).toInt());
-
-    comboBox_Bould->setCurrentText(value.at(1));
-    comboBox_Parity->setCurrentText(value.at(2));
-    comboBox_StopBits->setCurrentText(value.at(3));
-
-    if(value.at(2)=="NoParity"){
-        serial.setParity(QSerialPort::Parity::NoParity);
-    }else if(value.at(2)=="EvenParity"){
-        serial.setParity(QSerialPort::Parity::EvenParity);
-    }
-    else if(value.at(2)=="OddParity"){
-        serial.setParity(QSerialPort::Parity::OddParity);
-    }
-    else if(value.at(2)=="MarkParity"){
-        serial.setParity(QSerialPort::Parity::MarkParity);
-    }
-    else if(value.at(2)=="SpaceParity"){
-        serial.setParity(QSerialPort::Parity::SpaceParity);
-    }
-
-    if(value.at(3)=="OneStop"){
-         serial.setStopBits(QSerialPort::StopBits::OneStop);
-    }else if(value.at(3)=="TwoStop"){
-        serial.setStopBits(QSerialPort::StopBits::TwoStop);
-    }
 }
 
 void UpWidg::updateValues()
@@ -271,88 +185,28 @@ void UpWidg::updateValues()
     saveConfig();
 }
 
-void UpWidg::read_commands()
+void UpWidg::appendList(QList<QWidget *> list)
 {
-
-    QByteArray requestData;
-    QElapsedTimer packetTimer;
-    packetTimer.start();
-
-    // Чтение данных с учетом временных пауз между пакетами (3 мс)
-    while (packetTimer.elapsed() < 50) { // Максимальное время ожидания ответа 50 мс
-        if (serial.waitForReadyRead(3)) { // Ожидание данных с учетом паузы между пакетами
-            requestData += serial.readAll();
-            packetTimer.restart();
-
-            // Проверка конца пакета по байту 0xFF
-            if (requestData.endsWith('\xFF')) {
-                break;
-            }
-        }
-    }
-    if(requestData.isEmpty()){return;}
-
-
-    // Проверка минимальной длины (7 байт) и байта конца пакета (0xFF)
-    if (requestData.size() >= 7 && requestData.size()<=15 && static_cast<quint8>(requestData[requestData.size() - 1]) == 0xFF) {
-        // Проверка адреса отправителя (0x89 или 0xF0 для широковещательных)
-        quint8 address = static_cast<quint8>(requestData[0]);
-        if (address == 0x89 || address == 0xF0) {
-            lw->appendList(requestData.toHex(), 1);
-
-            quint8 commandNum = static_cast<quint8>(requestData[2]);
-            if (commandNum == 0x19){
-                lbl_time->setText(mF->command_0x19(requestData));
-            }
-            else{
-                answer = mF->answer_command(requestData,serial);
-
-                serial.write(answer);
-                qDebug()<<answer.toHex()<<" - "<<answer.size();
-
-                if(!serial.waitForBytesWritten(10)) {
-                    str = QTime::currentTime().toString("HH:mm:ss:zzz")+" - "+answer.toHex()+" - 0";
-                    list_answer.append(str);
-                    qDebug()<<answer;
-                } else {
-                    serial.flush();
-                    str = QTime::currentTime().toString("HH:mm:ss:zzz")+" - "+answer.toHex()+" - 1";
-                    counterPacks++;
-                    list_answer.append(str);
-                }
-            }
-
-        } else {
-            lw->appendList(requestData.toHex(), 0);
-        }
-    } else if (!requestData.isEmpty()) {
-        lw->appendList(requestData.toHex(), 0);
-    }
-    else{
-        lw->appendList(requestData.toHex(), 0);
-    }
-}
-
-void UpWidg::appendList(QWidget *w)
-{
-    mF->appendList(w->findChildren<QLineEdit*>());
+    st->appendList(list);
 }
 
 QStringList UpWidg::openConfig()
 {
     QString executablePath = QCoreApplication::applicationDirPath();
     QString filePath = executablePath + "/../conf/config.txt";
+
     QFile file(filePath);
+    if (!file.exists() || file.size() == 0) {
+        qDebug() << "Файл не существует или пуст, создаем конфиг по умолчанию";
+        file.close();
+        default_config();
+    }
 
     if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         QTextStream stream(&file);
         QStringList result;
         bool found = false;
-        if(file.size()==0){
-            qDebug()<<"Файл пуст";
-        }
 
-        // Читаем файл построчно
         while (!stream.atEnd()) {
             QString line = stream.readLine().trimmed();
 
@@ -394,17 +248,19 @@ QStringList UpWidg::openConfig()
             }
         }
 
+        set_config(result);
+
         file.close();
 
         if (!found) {
             qDebug() << "Параметр adres_priem не найден в файле";
-            return QStringList(); // Возвращаем пустую строку если параметр не найден
+            return QStringList();
         }
 
         return result;
     } else {
         qDebug() << "Error: Не удалось открыть файл для чтения";
-        return QStringList(); // Возвращаем пустую строку при ошибке
+        return QStringList();
     }
 }
 
@@ -449,8 +305,96 @@ void UpWidg::saveConfig()
     }
 }
 
-void UpWidg::countPack()
+void UpWidg::set_config(QStringList config)
 {
-    lblValue->setText(QString::number(counterPacks));
+    if(comboBox_Parity->count()<=0||comboBox_COM->count()<=0||comboBox_Bould->count()<=0||comboBox_StopBits->count()<=0){
+        qDebug()<<"Пусто";
+    }
+    for(int i = 0;i<comboBox_COM->count()-1;i++){
+        int index = comboBox_COM->findText(config.at(0));
+        if (index != -1) {  // если такое значение есть в comboBox
+            comboBox_COM->setCurrentIndex(index);
+        } else {
+            qDebug() << "Значение" << config.at(0) << "не найдено в comboBox";
+        }
+    }
+    for(int i = 0;i<comboBox_Bould->count()-1;i++){
+        int index = comboBox_Bould->findText(config.at(1));
+        if (index != -1) {  // если такое значение есть в comboBox
+            comboBox_Bould->setCurrentIndex(index);
+        } else {
+            qDebug() << "Значение" << config.at(1) << "не найдено в comboBox";
+        }
+    }
+    for(int i = 0;i<comboBox_Parity->count()-1;i++){
+        int index = comboBox_Parity->findText(config.at(2));
+        if (index != -1) {  // если такое значение есть в comboBox
+            comboBox_Parity->setCurrentIndex(index);
+        } else {
+            qDebug() << "Значение" << config << "не найдено в comboBox";
+        }
+    }
+    for(int i = 0;i<comboBox_StopBits->count()-1;i++){
+        int index = comboBox_StopBits->findText(config.at(3));
+        if (index != -1) {  // если такое значение есть в comboBox
+            comboBox_StopBits->setCurrentIndex(index);
+        } else {
+            qDebug() << "Значение" << config.at(3) << "не найдено в comboBox";
+        }
+    }
 }
+
+void UpWidg::default_config()
+{
+    QString executablePath = QCoreApplication::applicationDirPath();
+    QString filePath = executablePath + "/../conf/config.txt";
+    QFile file(filePath);
+
+    if(file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream stream(&file);
+
+        // Записываем в config
+        stream << "[main]\n";
+        stream << "Adres_Priem = " << "0x89" << "\n";
+        stream << "Baund = " << "9600" << "\n";
+        stream << "Parity = " << "NONE" << "\n";
+        stream << "Stop_Bits = " << "1" << "\n";
+
+        if(stream.status() != QTextStream::Ok) {
+            qDebug() << "Ошибка записи данных: " << filePath << stream.status();
+        }
+
+        file.close();
+
+        if(file.error() != QFile::NoError) {
+            qDebug() << "Ошибка закрытия файла";
+        }
+    }
+    else {
+        qDebug() << "Не удалось открыть файл для записи";
+    }
+}
+
+void UpWidg::set_time(QString time)
+{
+    timer->start(1000);
+    lbl_time->setText(time);
+}
+
+void UpWidg::addTime()
+{
+    QString timeStr = lbl_time->text().trimmed();
+
+    QLocale locale(QLocale::C); // Используем стандартную локаль (точка как разделитель)
+    QDateTime dt = locale.toDateTime(timeStr, "dd.MM.yyyy HH:mm:ss");
+
+    if (!dt.isValid()) {
+        qDebug() << "Ошибка парсинга! Устанавливаю текущее время.";
+        dt = QDateTime::currentDateTime();
+    }
+    dt = dt.addSecs(1);
+    QString newTimeStr = dt.toString("dd.MM.yyyy HH:mm:ss");
+    lbl_time->setText(newTimeStr);
+}
+
 

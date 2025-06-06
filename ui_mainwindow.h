@@ -38,7 +38,7 @@ public:
 
     void retranslateUi(QMainWindow *MainWindow)
     {
-        MainWindow->setWindowTitle(QCoreApplication::translate("MainWindow", "EnergyDeviceSimulator v1.0.0.0", nullptr));
+        MainWindow->setWindowTitle(QCoreApplication::translate("MainWindow", "EnergyDeviceSimulator v1.0.0.1_05.06.2025", nullptr));
     } // retranslateUi
 
 };

@@ -21,3 +21,4 @@ QVector<QString> Logic::showPortsName()
     }
     return portsName;
 }
+

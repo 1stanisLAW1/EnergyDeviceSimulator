@@ -34,5 +34,6 @@ private:
     QLabel* lblLeftPanel_2;
     SendingCommands*sComm;
     QTabWidget* tabWidget;
+
 };
 #endif // MAINWINDOW_H

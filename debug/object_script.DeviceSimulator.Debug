@@ -4,9 +4,11 @@ debug/main.o
 debug/mainfunctions.o
 debug/mainwindow.o
 debug/sendingcommands.o
+debug/serial_thread.o
 debug/upwidg.o
 debug/moc_logiwrite.o
 debug/moc_mainfunctions.o
 debug/moc_mainwindow.o
 debug/moc_sendingcommands.o
+debug/moc_serial_thread.o
 debug/moc_upwidg.o

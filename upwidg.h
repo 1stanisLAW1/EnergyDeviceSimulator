@@ -2,12 +2,12 @@
 #define UPWIDG_H
 
 #include "logic.h"
-#include "logiwrite.h"
-#include "mainfunctions.h"
 #include "qcombobox.h"
+#include "qdatetime.h"
 #include "qlabel.h"
 #include "qpushbutton.h"
-#include "qserialport.h"
+#include "qthread.h"
+#include "serial_thread.h"
 #include <QObject>
 
 class UpWidg : public QObject
@@ -20,11 +20,27 @@ public:
     void setItem_ComboBox();
     void updateValues();
 
-    void read_commands();
-    void appendList(QWidget*);
+    void appendList(QList<QWidget*>list);
     QStringList openConfig();
     void saveConfig();
-    void countPack();
+    void set_config(QStringList);
+    void default_config();
+public slots:
+    void set_time(QString);
+    void valid(){
+        if(start == true){
+            btnStart->click();
+        }else{
+            start = false;
+        }
+    }
+    void addTime();
+signals:
+    void startRequested(const QString &portName,const QString &baund,const QString &parity,const QString&stop,const QString s);
+    void stopRequest();
+    void updateRequested();
+    void start_timer();
+    void update(const QString &portName,const QString &baund,const QString &parity,const QString&stop,const QString s);
 
 
 private:
@@ -33,33 +49,26 @@ private:
     QComboBox* comboBox_Bould;
     QComboBox* comboBox_Parity;
     QComboBox* comboBox_StopBits;
+    QPushButton* btnStart;
     QLabel* lblValue;
     QLineEdit* lblValue_2;
     QLabel* lbl_time;
-    QPushButton* btnStart;
 
-    QTimer*timer;
-    QTimer*timer_2;
-    QSerialPort serial;
-    QThread *serialThread;
+    QThread* thread_port;
 
     Logic*log;
-    Mainfunctions*mF;
-    LogiWrite*lw;
+    Serial_Thread*st;
 
     bool start = false;
     bool timerConnected;
-    int counterPacks = 0;
     int count_2 = 0;
     QVector<QString>vec;
     QStringList value;
     QByteArray answer;
     QString str;
-
-    QList<QString>list_answer;
-
-signals:
-    void updateRequested();
+    bool config_empty = false;
+    QTimer* timer;
+    QDateTime dt;
 };
 
 #endif // UPWIDG_H
