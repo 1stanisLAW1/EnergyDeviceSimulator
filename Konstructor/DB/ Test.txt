@@ -1,4 +1,0 @@
-Name-Модулятор Lenght- 0
-Name-Отклонение фаз Lenght- 1500
-Name-модуль Генератора Lenght- 3200
-Name-Обороты турбины Lenght- 4200
